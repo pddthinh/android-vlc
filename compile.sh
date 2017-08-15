@@ -18,6 +18,8 @@ checkfail()
     fi
 }
 
+ONLY_DOWNLOAD_VLC_SRC=0
+
 # Read the Android Wiki http://wiki.videolan.org/AndroidCompile
 # Setup all that stuff correctly.
 # Get the latest Android SDK Platform or modify numbers in configure.sh and libvlc/default.properties.
@@ -35,6 +37,7 @@ while [ $# -gt 0 ]; do
             echo "Use -s to set your keystore file and -p for the password"
             echo "Use -c to get a ChromeOS build"
             echo "Use -l to build only LibVLC"
+            echo "Use --vlc to download VLC source"
             exit 0
             ;;
         a|-a)
@@ -67,6 +70,9 @@ while [ $# -gt 0 ]; do
             ;;
         --asan)
             ASAN=1
+            ;;
+        vlc|--vlc)
+            ONLY_DOWNLOAD_VLC_SRC=1
             ;;
         *)
             diagnostic "$0: Invalid option '$1'."
@@ -242,6 +248,11 @@ EOF
         git reset --hard ${TESTED_HASH}
     fi
     cd ..
+fi
+
+if [ "$ONLY_DOWNLOAD_VLC_SRC" = "1" ]; then
+	echo "Only download VLC source, ignore build ...";
+	exit 1;
 fi
 
 ############
