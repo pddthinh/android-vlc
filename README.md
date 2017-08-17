@@ -7,6 +7,7 @@ https://code.videolan.org/videolan/vlc-android.git
 * VLC source is checked out with
 TESTED_HASH=bdb4031
 (check compile.sh for more info)
+* NDK r14b
 
 ## Build
 
