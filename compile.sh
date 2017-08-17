@@ -19,6 +19,7 @@ checkfail()
 }
 
 ONLY_DOWNLOAD_VLC_SRC=0
+USE_LOCAL_VLC_SRC=1
 
 # Read the Android Wiki http://wiki.videolan.org/AndroidCompile
 # Setup all that stuff correctly.
@@ -38,6 +39,7 @@ while [ $# -gt 0 ]; do
             echo "Use -c to get a ChromeOS build"
             echo "Use -l to build only LibVLC"
             echo "Use --vlc to download VLC source"
+            echo "Use --no-local to use remote VLC source tree (checkout from VLC git)"
             exit 0
             ;;
         a|-a)
@@ -73,6 +75,9 @@ while [ $# -gt 0 ]; do
             ;;
         vlc|--vlc)
             ONLY_DOWNLOAD_VLC_SRC=1
+            ;;
+        --no-local)
+            USE_LOCAL_VLC_SRC=0
             ;;
         *)
             diagnostic "$0: Invalid option '$1'."
@@ -236,16 +241,18 @@ if [ ! -d "vlc" ]; then
 else
     diagnostic "VLC source found"
     cd vlc
-    if ! git cat-file -e ${TESTED_HASH}; then
-        cat 1>&2 << EOF
+    if [ ! "$USE_LOCAL_VLC_SRC" = "1" ]; then
+		if ! git cat-file -e ${TESTED_HASH}; then
+			cat 1>&2 << EOF
 ***
 *** Error: Your vlc checkout does not contain the latest tested commit: ${TESTED_HASH}
 ***
 EOF
-        exit 1
-    fi
-    if [ "$RELEASE" = 1 ]; then
-        git reset --hard ${TESTED_HASH}
+			exit 1
+		fi
+		if [ "$RELEASE" = 1 ]; then
+			git reset --hard ${TESTED_HASH}
+		fi
     fi
     cd ..
 fi
