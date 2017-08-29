@@ -341,9 +341,9 @@ static void qsv_frame_pool_Destroy(qsv_frame_pool_t *pool)
  * necessary associates the new picture with it and return the frame.
  * Returns 0 if there's an error.
  */
-static mfxFrameSurface1 *qsv_frame_pool_Get(qsv_frame_pool_t *pool,
-                                            picture_t *pic)
+static mfxFrameSurface1 *qsv_frame_pool_Get(encoder_sys_t *sys, picture_t *pic)
 {
+    qsv_frame_pool_t *pool = &sys->frames;
     for (size_t i = 0; i < pool->size; i++) {
         mfxFrameSurface1 *frame = &pool->frames[i];
         if (frame->Data.Locked)
@@ -355,7 +355,7 @@ static mfxFrameSurface1 *qsv_frame_pool_Get(qsv_frame_pool_t *pool,
         frame->Data.Y         = pic->p[0].p_pixels;
         frame->Data.U         = pic->p[1].p_pixels;
         frame->Data.V         = pic->p[1].p_pixels + 1;
-        frame->Data.TimeStamp = qsv_mtime_to_timestamp(pic->date);
+        frame->Data.TimeStamp = qsv_mtime_to_timestamp(pic->date - sys->offset_pts);
 
         // Specify picture structure at runtime.
         if (pic->b_progressive)
@@ -449,6 +449,7 @@ static int Open(vlc_object_t *this)
     /* Vlc module configuration */
     enc->p_sys                         = sys;
     enc->fmt_in.i_codec                = VLC_CODEC_NV12; // Intel Media SDK requirement
+    enc->fmt_in.video.i_chroma         = VLC_CODEC_NV12;
     enc->fmt_in.video.i_bits_per_pixel = 12;
 
     /* Input picture format description */
@@ -497,11 +498,10 @@ static int Open(vlc_object_t *this)
             sys->params.mfx.CodecProfile, sys->params.mfx.CodecLevel);
     }
 
+    char *psz_rc = var_InheritString(enc, SOUT_CFG_PREFIX "rc-method");
+    msg_Dbg(enc, "Encoder using '%s' Rate Control method", psz_rc );
     sys->params.mfx.RateControlMethod = qsv_params_get_value(rc_method_text,
-        rc_method_list, sizeof(rc_method_list),
-        var_InheritString(enc, SOUT_CFG_PREFIX "rc-method"));
-    msg_Dbg(enc, "Encoder using '%s' Rate Control method",
-        var_InheritString(enc, SOUT_CFG_PREFIX "rc-method"));
+        rc_method_list, sizeof(rc_method_list), psz_rc );
 
     if (sys->params.mfx.RateControlMethod == MFX_RATECONTROL_CQP) {
         sys->params.mfx.QPI = sys->params.mfx.QPB = sys->params.mfx.QPP =
@@ -621,9 +621,6 @@ static void qsv_set_block_flags(block_t *block, uint16_t frame_type)
  */
 static void qsv_set_block_ts(encoder_t *enc, encoder_sys_t *sys, block_t *block, mfxBitstream *bs)
 {
-    if (!bs->TimeStamp)
-        return;
-
     block->i_pts = qsv_timestamp_to_mtime(bs->TimeStamp) + sys->offset_pts;
     block->i_dts = qsv_timestamp_to_mtime(bs->DecodeTimeStamp) + sys->offset_pts;
 
@@ -661,9 +658,8 @@ static block_t *Encode(encoder_t *this, picture_t *pic)
            (Thanks to funman for the idea) */
         if (!sys->offset_pts) // First frame
             sys->offset_pts = pic->date;
-        pic->date -= sys->offset_pts;
 
-        frame = qsv_frame_pool_Get(&sys->frames, pic);
+        frame = qsv_frame_pool_Get(sys, pic);
         if (!frame) {
             msg_Warn(enc, "Unable to find an unlocked surface in the pool");
             return NULL;
