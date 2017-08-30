@@ -66,4 +66,4 @@ libVLC/build/
 libvlc.pc
 libvlc.pc.backup
 libvlcpp.pc
-lib/
+./lib/
